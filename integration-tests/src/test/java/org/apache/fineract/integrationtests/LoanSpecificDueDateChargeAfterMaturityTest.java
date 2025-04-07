@@ -36,8 +36,8 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import org.apache.fineract.client.models.BusinessDateRequest;
+import org.apache.fineract.client.models.ChargeRequest;
 import org.apache.fineract.client.models.GetLoansLoanIdResponse;
-import org.apache.fineract.client.models.PostChargesRequest;
 import org.apache.fineract.client.models.PostChargesResponse;
 import org.apache.fineract.client.models.PostClientsResponse;
 import org.apache.fineract.client.models.PostLoansLoanIdChargesRequest;
@@ -48,10 +48,11 @@ import org.apache.fineract.client.models.PostLoansLoanIdTransactionsResponse;
 import org.apache.fineract.client.models.PostLoansLoanIdTransactionsTransactionIdRequest;
 import org.apache.fineract.client.models.PostLoansRequest;
 import org.apache.fineract.client.models.PostLoansResponse;
+import org.apache.fineract.client.models.PutGlobalConfigurationsRequest;
 import org.apache.fineract.infrastructure.businessdate.domain.BusinessDateType;
+import org.apache.fineract.infrastructure.configuration.api.GlobalConfigurationConstants;
 import org.apache.fineract.integrationtests.common.BusinessDateHelper;
 import org.apache.fineract.integrationtests.common.ClientHelper;
-import org.apache.fineract.integrationtests.common.GlobalConfigurationHelper;
 import org.apache.fineract.integrationtests.common.Utils;
 import org.apache.fineract.integrationtests.common.accounting.Account;
 import org.apache.fineract.integrationtests.common.accounting.AccountHelper;
@@ -60,7 +61,6 @@ import org.apache.fineract.integrationtests.common.charges.ChargesHelper;
 import org.apache.fineract.integrationtests.common.loans.LoanApplicationTestBuilder;
 import org.apache.fineract.integrationtests.common.loans.LoanProductTestBuilder;
 import org.apache.fineract.integrationtests.common.loans.LoanStatusChecker;
-import org.apache.fineract.integrationtests.common.loans.LoanTestLifecycleExtension;
 import org.apache.fineract.integrationtests.common.loans.LoanTransactionHelper;
 import org.apache.fineract.integrationtests.common.savings.SavingsProductHelper;
 import org.apache.fineract.portfolio.charge.domain.ChargeCalculationType;
@@ -68,13 +68,11 @@ import org.apache.fineract.portfolio.charge.domain.ChargePaymentMode;
 import org.apache.fineract.portfolio.charge.domain.ChargeTimeType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings({ "unchecked" })
-@ExtendWith(LoanTestLifecycleExtension.class)
-public class LoanSpecificDueDateChargeAfterMaturityTest {
+public class LoanSpecificDueDateChargeAfterMaturityTest extends BaseLoanIntegrationTest {
 
     private static final String DATETIME_PATTERN = "dd MMMM yyyy";
     private static final String ACCOUNT_TYPE_INDIVIDUAL = "INDIVIDUAL";
@@ -175,10 +173,10 @@ public class LoanSpecificDueDateChargeAfterMaturityTest {
 
         ArrayList<HashMap> loanSchedule = this.loanTransactionHelper.getLoanRepaymentSchedule(requestSpec, responseSpec, loanID);
         assertEquals(2, loanSchedule.size());
-        assertEquals(0, loanSchedule.get(1).get("feeChargesDue"));
-        assertEquals(0, loanSchedule.get(1).get("feeChargesOutstanding"));
-        assertEquals(0, loanSchedule.get(1).get("penaltyChargesDue"));
-        assertEquals(0, loanSchedule.get(1).get("penaltyChargesOutstanding"));
+        assertEquals(0.0f, loanSchedule.get(1).get("feeChargesDue"));
+        assertEquals(0.0f, loanSchedule.get(1).get("feeChargesOutstanding"));
+        assertEquals(0.0f, loanSchedule.get(1).get("penaltyChargesDue"));
+        assertEquals(0.0f, loanSchedule.get(1).get("penaltyChargesOutstanding"));
         assertEquals(10000.0f, loanSchedule.get(1).get("totalDueForPeriod"));
         assertEquals(10000.0f, loanSchedule.get(1).get("totalOutstandingForPeriod"));
         targetDate = LocalDate.of(2011, 4, 5);
@@ -308,10 +306,10 @@ public class LoanSpecificDueDateChargeAfterMaturityTest {
 
         ArrayList<HashMap> loanSchedule = this.loanTransactionHelper.getLoanRepaymentSchedule(requestSpec, responseSpec, loanID);
         assertEquals(2, loanSchedule.size());
-        assertEquals(0, loanSchedule.get(1).get("feeChargesDue"));
-        assertEquals(0, loanSchedule.get(1).get("feeChargesOutstanding"));
-        assertEquals(0, loanSchedule.get(1).get("penaltyChargesDue"));
-        assertEquals(0, loanSchedule.get(1).get("penaltyChargesOutstanding"));
+        assertEquals(0.0f, loanSchedule.get(1).get("feeChargesDue"));
+        assertEquals(0.0f, loanSchedule.get(1).get("feeChargesOutstanding"));
+        assertEquals(0.0f, loanSchedule.get(1).get("penaltyChargesDue"));
+        assertEquals(0.0f, loanSchedule.get(1).get("penaltyChargesOutstanding"));
         assertEquals(10000.0f, loanSchedule.get(1).get("totalDueForPeriod"));
         assertEquals(10000.0f, loanSchedule.get(1).get("totalOutstandingForPeriod"));
 
@@ -436,11 +434,12 @@ public class LoanSpecificDueDateChargeAfterMaturityTest {
     @Test
     public void addChargeAfterLoanMaturity() {
         try {
-            GlobalConfigurationHelper.updateIsBusinessDateEnabled(requestSpec, responseSpec, Boolean.TRUE);
+            globalConfigurationHelper.updateGlobalConfiguration(GlobalConfigurationConstants.ENABLE_BUSINESS_DATE,
+                    new PutGlobalConfigurationsRequest().enabled(true));
             BUSINESS_DATE_HELPER.updateBusinessDate(new BusinessDateRequest().type(BusinessDateType.BUSINESS_DATE.getName())
                     .date("01 September 2023").dateFormat(DATETIME_PATTERN).locale("en"));
 
-            PostChargesResponse penaltyCharge = CHARGES_HELPER.createCharges(new PostChargesRequest().penalty(true).amount(10.0)
+            PostChargesResponse penaltyCharge = CHARGES_HELPER.createCharges(new ChargeRequest().penalty(true).amount(10.0)
                     .chargeCalculationType(ChargeCalculationType.FLAT.getValue())
                     .chargeTimeType(ChargeTimeType.SPECIFIED_DUE_DATE.getValue()).chargePaymentMode(ChargePaymentMode.REGULAR.getValue())
                     .currencyCode("USD").name(Utils.randomStringGenerator("PENALTY_" + Calendar.getInstance().getTimeInMillis(), 5))
@@ -508,7 +507,8 @@ public class LoanSpecificDueDateChargeAfterMaturityTest {
             validateRepaymentPeriod(loanDetails, 2, 0.0, 0.0, 0.0, 10.0, 0.0, 10.0, 0.0, 0.0);
             assertTrue(loanDetails.getStatus().getActive());
         } finally {
-            GlobalConfigurationHelper.updateIsBusinessDateEnabled(requestSpec, responseSpec, Boolean.FALSE);
+            globalConfigurationHelper.updateGlobalConfiguration(GlobalConfigurationConstants.ENABLE_BUSINESS_DATE,
+                    new PutGlobalConfigurationsRequest().enabled(false));
         }
     }
 
@@ -589,14 +589,5 @@ public class LoanSpecificDueDateChargeAfterMaturityTest {
         assertEquals(penaltyOutstanding, loanDetails.getRepaymentSchedule().getPeriods().get(index).getPenaltyChargesOutstanding());
         assertEquals(paidInAdvance, loanDetails.getRepaymentSchedule().getPeriods().get(index).getTotalPaidInAdvanceForPeriod());
         assertEquals(paidLate, loanDetails.getRepaymentSchedule().getPeriods().get(index).getTotalPaidLateForPeriod());
-    }
-
-    private static void validateLoanSummaryBalances(GetLoansLoanIdResponse loanDetails, Double totalOutstanding, Double totalRepayment,
-            Double principalOutstanding, Double principalPaid, Double totalOverpaid) {
-        assertEquals(totalOutstanding, loanDetails.getSummary().getTotalOutstanding());
-        assertEquals(totalRepayment, loanDetails.getSummary().getTotalRepayment());
-        assertEquals(principalOutstanding, loanDetails.getSummary().getPrincipalOutstanding());
-        assertEquals(principalPaid, loanDetails.getSummary().getPrincipalPaid());
-        assertEquals(totalOverpaid, loanDetails.getTotalOverpaid());
     }
 }

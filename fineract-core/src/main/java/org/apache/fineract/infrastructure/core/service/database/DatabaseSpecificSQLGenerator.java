@@ -161,7 +161,7 @@ public class DatabaseSpecificSQLGenerator {
 
     public String castChar(String sql) {
         if (databaseTypeResolver.isMySQL()) {
-            return format("CAST(%s AS CHAR)", sql);
+            return format("CAST(%s AS CHAR) COLLATE utf8mb4_unicode_ci", sql);
         } else if (databaseTypeResolver.isPostgreSQL()) {
             return format("%s::CHAR", sql);
         } else {
@@ -289,4 +289,13 @@ public class DatabaseSpecificSQLGenerator {
             }
         };
     }
+
+    public String incrementDateByOneDay(String dateColumn) {
+        return switch (getDialect()) {
+            case POSTGRESQL -> " " + dateColumn + "+1";
+            case MYSQL -> " DATE_ADD(" + dateColumn + ", INTERVAL 1 DAY) ";
+        };
+
+    }
+
 }

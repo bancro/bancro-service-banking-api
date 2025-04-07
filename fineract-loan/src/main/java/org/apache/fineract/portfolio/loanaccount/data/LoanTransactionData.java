@@ -29,6 +29,7 @@ import org.apache.fineract.organisation.monetary.data.CurrencyData;
 import org.apache.fineract.portfolio.account.data.AccountTransferData;
 import org.apache.fineract.portfolio.paymentdetail.data.PaymentDetailData;
 import org.apache.fineract.portfolio.paymenttype.data.PaymentTypeData;
+import org.springframework.integration.annotation.Default;
 
 /**
  * Immutable data object representing a loan transaction.
@@ -213,6 +214,7 @@ public class LoanTransactionData {
 
     }
 
+    @Default // Default constructor for mapper
     public LoanTransactionData(final Long id, final Long officeId, final String officeName, final LoanTransactionEnumData transactionType,
             final PaymentDetailData paymentDetailData, final CurrencyData currency, final LocalDate date, final BigDecimal amount,
             final BigDecimal netDisbursalAmount, final BigDecimal principalPortion, final BigDecimal interestPortion,
@@ -300,14 +302,13 @@ public class LoanTransactionData {
     public static LoanTransactionData loanTransactionDataForDisbursalTemplate(final LoanTransactionEnumData transactionType,
             final LocalDate expectedDisbursedOnLocalDateForTemplate, final BigDecimal disburseAmountForTemplate,
             final BigDecimal netDisbursalAmount, final Collection<PaymentTypeData> paymentOptions, final BigDecimal retriveLastEmiAmount,
-            final LocalDate possibleNextRepaymentDate) {
+            final LocalDate possibleNextRepaymentDate, final CurrencyData currency) {
         final Long id = null;
         final Long loanId = null;
         final ExternalId externalLoanId = ExternalId.empty();
         final Long officeId = null;
         final String officeName = null;
         final PaymentDetailData paymentDetailData = null;
-        final CurrencyData currency = null;
         final BigDecimal unrecognizedIncomePortion = null;
         final BigDecimal principalPortion = null;
         final BigDecimal interestPortion = null;
@@ -381,5 +382,9 @@ public class LoanTransactionData {
 
     public void setLoanTransactionRelations(List<LoanTransactionRelationData> transactionRelations) {
         this.transactionRelations = transactionRelations;
+    }
+
+    public boolean supportTransactionRelations() {
+        return !type.isAccrual();
     }
 }

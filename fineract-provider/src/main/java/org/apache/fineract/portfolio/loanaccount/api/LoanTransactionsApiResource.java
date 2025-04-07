@@ -45,12 +45,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import lombok.AllArgsConstructor;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.commands.domain.CommandWrapper;
 import org.apache.fineract.commands.service.CommandWrapperBuilder;
 import org.apache.fineract.commands.service.PortfolioCommandSourceWritePlatformService;
 import org.apache.fineract.infrastructure.core.api.ApiRequestParameterHelper;
 import org.apache.fineract.infrastructure.core.api.DateParam;
+import org.apache.fineract.infrastructure.core.api.jersey.Pagination;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.data.DateFormat;
 import org.apache.fineract.infrastructure.core.domain.ExternalId;
@@ -64,12 +66,15 @@ import org.apache.fineract.infrastructure.security.service.PlatformSecurityConte
 import org.apache.fineract.portfolio.loanaccount.data.LoanRepaymentScheduleInstallmentData;
 import org.apache.fineract.portfolio.loanaccount.data.LoanTransactionData;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanTransactionType;
+import org.apache.fineract.portfolio.loanaccount.exception.InvalidLoanTransactionTypeException;
 import org.apache.fineract.portfolio.loanaccount.exception.LoanNotFoundException;
 import org.apache.fineract.portfolio.loanaccount.exception.LoanTransactionNotFoundException;
-import org.apache.fineract.portfolio.loanaccount.service.LoanChargePaidByReadPlatformService;
+import org.apache.fineract.portfolio.loanaccount.service.LoanChargePaidByReadService;
 import org.apache.fineract.portfolio.loanaccount.service.LoanReadPlatformService;
 import org.apache.fineract.portfolio.paymenttype.data.PaymentTypeData;
 import org.apache.fineract.portfolio.paymenttype.service.PaymentTypeReadPlatformService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 @Path("/v1/loans")
@@ -96,7 +101,7 @@ public class LoanTransactionsApiResource {
     private final DefaultToApiJsonSerializer<LoanTransactionData> toApiJsonSerializer;
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
     private final PaymentTypeReadPlatformService paymentTypeReadPlatformService;
-    private final LoanChargePaidByReadPlatformService loanChargePaidByReadPlatformService;
+    private final LoanChargePaidByReadService loanChargePaidByReadService;
 
     @GET
     @Path("{loanId}/transactions/template")
@@ -111,9 +116,9 @@ public class LoanTransactionsApiResource {
             + "loans/1/transactions/template?command=disburse" + "\n" + "loans/1/transactions/template?command=disburseToSavings" + "\n"
             + "loans/1/transactions/template?command=recoverypayment" + "\n" + "loans/1/transactions/template?command=prepayLoan" + "\n"
             + "loans/1/transactions/template?command=refundbycash" + "\n" + "loans/1/transactions/template?command=refundbytransfer" + "\n"
-            + "loans/1/transactions/template?command=foreclosure" + "\n"
-            + "loans/1/transactions/template?command=creditBalanceRefund (returned 'amount' field will have the overpaid value)" + "\n"
-            + "loans/1/transactions/template?command=charge-off" + "\n" + "loans/1/transactions/template?command=downPayment" + "\n")
+            + "loans/1/transactions/template?command=foreclosure" + "\n" + "loans/1/transactions/template?command=interestPaymentWaiver"
+            + "\n" + "loans/1/transactions/template?command=creditBalanceRefund (returned 'amount' field will have the overpaid value)"
+            + "\n" + "loans/1/transactions/template?command=charge-off" + "\n" + "loans/1/transactions/template?command=downPayment" + "\n")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = LoanTransactionsApiResourceSwagger.GetLoansLoanIdTransactionsTemplateResponse.class))) })
     public String retrieveTransactionTemplate(@PathParam("loanId") @Parameter(description = "loanId", required = true) final Long loanId,
@@ -140,9 +145,9 @@ public class LoanTransactionsApiResource {
             + "loans/1/transactions/template?command=disburse" + "\n" + "loans/1/transactions/template?command=disburseToSavings" + "\n"
             + "loans/1/transactions/template?command=recoverypayment" + "\n" + "loans/1/transactions/template?command=prepayLoan" + "\n"
             + "loans/1/transactions/template?command=refundbycash" + "\n" + "loans/1/transactions/template?command=refundbytransfer" + "\n"
-            + "loans/1/transactions/template?command=foreclosure" + "\n"
-            + "loans/1/transactions/template?command=creditBalanceRefund (returned 'amount' field will have the overpaid value)" + "\n"
-            + "loans/1/transactions/template?command=charge-off" + "\n" + "loans/1/transactions/template?command=downPayment" + "\n")
+            + "loans/1/transactions/template?command=foreclosure" + "\n" + "loans/1/transactions/template?command=interestPaymentWaiver"
+            + "\n" + "loans/1/transactions/template?command=creditBalanceRefund (returned 'amount' field will have the overpaid value)"
+            + "\n" + "loans/1/transactions/template?command=charge-off" + "\n" + "loans/1/transactions/template?command=downPayment" + "\n")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = LoanTransactionsApiResourceSwagger.GetLoansLoanIdTransactionsTemplateResponse.class))) })
     public String retrieveTransactionTemplate(
@@ -222,6 +227,40 @@ public class LoanTransactionsApiResource {
             @Context final UriInfo uriInfo) {
 
         return retrieveTransaction(null, loanExternalId, null, externalTransactionId, uriInfo);
+    }
+
+    @GET
+    @Path("{loanId}/transactions")
+    @Consumes({ MediaType.APPLICATION_JSON })
+    @Produces({ MediaType.APPLICATION_JSON })
+    @Operation(summary = "Retrieve Transactions", description = "Retrieves transactions of a loan")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = LoanTransactionsApiResourceSwagger.GetLoansLoanIdTransactionsResponse.class))) })
+    public Page<LoanTransactionData> retrieveTransactionsByLoanId(
+            @PathParam("loanId") @Parameter(description = "loanId", required = true) final Long loanId,
+            @QueryParam("excludedTypes") @Parameter(description = "excludedTypes", in = ParameterIn.QUERY, schema = @Schema(enumAsRef = true)) final List<LoanTransactionApiConstants.TransactionType> excludedTypes,
+            @QueryParam("page") @Parameter(description = "page") final Integer page,
+            @QueryParam("size") @Parameter(description = "size") final Integer size,
+            @QueryParam("sort") @Parameter(description = "sort") final String sort, @Parameter(hidden = true) @Pagination Pageable pageable,
+            @Context final UriInfo uriInfo) {
+        return retrieveTransactions(loanId, null, excludedTypes, pageable, uriInfo);
+    }
+
+    @GET
+    @Path("external-id/{loanExternalId}/transactions")
+    @Consumes({ MediaType.APPLICATION_JSON })
+    @Produces({ MediaType.APPLICATION_JSON })
+    @Operation(summary = "Retrieve Transactions", description = "Retrieves transactions of a loan")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = LoanTransactionsApiResourceSwagger.GetLoansLoanIdTransactionsResponse.class))) })
+    public Page<LoanTransactionData> retrieveTransactionsByExternalLoanId(
+            @PathParam("loanExternalId") @Parameter(description = "loanId", required = true) final String loanExternalId,
+            @QueryParam("excludedTypes") @Parameter(description = "excludedTypes", in = ParameterIn.QUERY, schema = @Schema(enumAsRef = true)) final List<LoanTransactionApiConstants.TransactionType> excludedTypes,
+            @QueryParam("page") @Parameter(description = "page") final Integer page,
+            @QueryParam("size") @Parameter(description = "size") final Integer size,
+            @QueryParam("sort") @Parameter(description = "sort") final String sort, @Parameter(hidden = true) @Pagination Pageable pageable,
+            @Context final UriInfo uriInfo) {
+        return retrieveTransactions(null, loanExternalId, excludedTypes, pageable, uriInfo);
     }
 
     @POST
@@ -428,8 +467,8 @@ public class LoanTransactionsApiResource {
 
         LoanTransactionData transactionData = this.loanReadPlatformService.retrieveLoanTransaction(resolvedLoanId,
                 resolvedLoanTransactionId);
-        transactionData.setLoanChargePaidByList(
-                this.loanChargePaidByReadPlatformService.getLoanChargesPaidByTransactionId(transactionData.getId()));
+        transactionData
+                .setLoanChargePaidByList(loanChargePaidByReadService.fetchLoanChargesPaidByDataTransactionId(transactionData.getId()));
         final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
         if (settings.isTemplate()) {
             final Collection<PaymentTypeData> paymentTypeOptions = this.paymentTypeReadPlatformService.retrieveAllPaymentTypes();
@@ -437,6 +476,59 @@ public class LoanTransactionsApiResource {
         }
 
         return this.toApiJsonSerializer.serialize(settings, transactionData, this.responseDataParameters);
+    }
+
+    private Page<LoanTransactionData> retrieveTransactions(final Long loanId, final String loanExternalIdStr,
+            final List<LoanTransactionApiConstants.TransactionType> excludedTypes, Pageable pageable, final UriInfo uriInfo) {
+
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+
+        ExternalId loanExternalId = ExternalIdFactory.produce(loanExternalIdStr);
+        Long resolvedLoanId = getResolvedLoanIdWithExistsCheck(loanId, loanExternalId);
+
+        Set<LoanTransactionType> excludedTransactionTypes = new HashSet<>();
+        if (CollectionUtils.isNotEmpty(excludedTypes)) {
+            excludedTypes.forEach(x -> excludedTransactionTypes.add(transactionTypeFromParam(x)));
+        }
+
+        return loanReadPlatformService.retrieveLoanTransactions(resolvedLoanId, excludedTransactionTypes, pageable);
+    }
+
+    private LoanTransactionType transactionTypeFromParam(LoanTransactionApiConstants.TransactionType transactionTypeParam) {
+        return switch (transactionTypeParam) {
+            case disbursement -> LoanTransactionType.DISBURSEMENT;
+            case repayment -> LoanTransactionType.REPAYMENT;
+            case waiver -> LoanTransactionType.WAIVE_INTEREST;
+            case repaymentAtDisbursement -> LoanTransactionType.REPAYMENT_AT_DISBURSEMENT;
+            case writeOff -> LoanTransactionType.WRITEOFF;
+            case markedForRescheduling -> LoanTransactionType.MARKED_FOR_RESCHEDULING;
+            case recoveryRepayment -> LoanTransactionType.RECOVERY_REPAYMENT;
+            case waiveCharges -> LoanTransactionType.WAIVE_CHARGES;
+            case accrual -> LoanTransactionType.ACCRUAL;
+            case initiateTransfer -> LoanTransactionType.INITIATE_TRANSFER;
+            case approveTransfer -> LoanTransactionType.APPROVE_TRANSFER;
+            case withdrawTransfer -> LoanTransactionType.WITHDRAW_TRANSFER;
+            case rejectTransfer -> LoanTransactionType.REJECT_TRANSFER;
+            case refund -> LoanTransactionType.REFUND;
+            case chargePayment -> LoanTransactionType.CHARGE_PAYMENT;
+            case incomePosting -> LoanTransactionType.INCOME_POSTING;
+            case creditBalanceRefund -> LoanTransactionType.CREDIT_BALANCE_REFUND;
+            case merchantIssuedRefund -> LoanTransactionType.MERCHANT_ISSUED_REFUND;
+            case payoutRefund -> LoanTransactionType.PAYOUT_REFUND;
+            case goodwillCredit -> LoanTransactionType.GOODWILL_CREDIT;
+            case chargeRefund -> LoanTransactionType.CHARGE_REFUND;
+            case chargeback -> LoanTransactionType.CHARGEBACK;
+            case chargeAdjustment -> LoanTransactionType.CHARGE_ADJUSTMENT;
+            case chargeOff -> LoanTransactionType.CHARGE_OFF;
+            case reAge -> LoanTransactionType.REAGE;
+            case reAmortize -> LoanTransactionType.REAMORTIZE;
+            case interestPaymentWaiver -> LoanTransactionType.INTEREST_PAYMENT_WAIVER;
+            case accrualActivity -> LoanTransactionType.ACCRUAL_ACTIVITY;
+            case interestRefund -> LoanTransactionType.INTEREST_REFUND;
+            case accrualAdjustment -> LoanTransactionType.ACCRUAL_ADJUSTMENT;
+            default ->
+                throw new InvalidLoanTransactionTypeException("transaction", transactionTypeParam.name(), "Unknown transaction type");
+        };
     }
 
     private String executeTransaction(final Long loanId, final String loanExternalIdStr, final String commandParam,
@@ -455,6 +547,8 @@ public class LoanTransactionsApiResource {
             commandRequest = builder.loanPayoutRefundTransaction(resolvedLoanId).build();
         } else if (CommandParameterUtil.is(commandParam, "goodwillCredit")) {
             commandRequest = builder.loanGoodwillCreditTransaction(resolvedLoanId).build();
+        } else if (CommandParameterUtil.is(commandParam, "interestPaymentWaiver")) {
+            commandRequest = builder.loanInterestPaymentWaiverTransaction(resolvedLoanId).build();
         } else if (CommandParameterUtil.is(commandParam, "chargeRefund")) {
             commandRequest = builder.refundLoanCharge(resolvedLoanId).build();
         } else if (CommandParameterUtil.is(commandParam, "waiveinterest")) {
@@ -520,6 +614,10 @@ public class LoanTransactionsApiResource {
         } else if (CommandParameterUtil.is(commandParam, "goodwillCredit")) {
             LocalDate transactionDate = DateUtils.getBusinessLocalDate();
             transactionData = this.loanReadPlatformService.retrieveLoanPrePaymentTemplate(LoanTransactionType.GOODWILL_CREDIT,
+                    resolvedLoanId, transactionDate);
+        } else if (CommandParameterUtil.is(commandParam, "interestPaymentWaiver")) {
+            LocalDate transactionDate = DateUtils.getBusinessLocalDate();
+            transactionData = this.loanReadPlatformService.retrieveLoanPrePaymentTemplate(LoanTransactionType.INTEREST_PAYMENT_WAIVER,
                     resolvedLoanId, transactionDate);
         } else if (CommandParameterUtil.is(commandParam, "waiveinterest")) {
             transactionData = this.loanReadPlatformService.retrieveWaiveInterestDetails(resolvedLoanId);
@@ -630,5 +728,22 @@ public class LoanTransactionsApiResource {
             }
         }
         return resolvedLoanId;
+    }
+
+    private Long getResolvedLoanIdWithExistsCheck(final Long loanId, final ExternalId loanExternalId) {
+        if (loanId != null) {
+            if (!loanReadPlatformService.existsByLoanId(loanId)) {
+                throw new LoanNotFoundException(loanId);
+            }
+            return loanId;
+        } else if (loanExternalId != null) {
+            final Long resolvedLoanId = loanReadPlatformService.retrieveLoanIdByExternalId(loanExternalId);
+            if (resolvedLoanId == null) {
+                throw new LoanNotFoundException(loanExternalId);
+            }
+            return resolvedLoanId;
+        } else {
+            throw new IllegalArgumentException("loanId and loanExternalId cannot be both null");
+        }
     }
 }

@@ -21,7 +21,6 @@ package org.apache.fineract.test.stepdef.loan;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.gson.Gson;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.cucumber.datatable.DataTable;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
@@ -40,8 +39,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.fineract.avro.loan.v1.LoanAccountDelinquencyRangeDataV1;
 import org.apache.fineract.avro.loan.v1.LoanInstallmentDelinquencyBucketDataV1;
+import org.apache.fineract.client.models.DelinquencyRangeData;
 import org.apache.fineract.client.models.GetDelinquencyActionsResponse;
-import org.apache.fineract.client.models.GetDelinquencyRangesResponse;
 import org.apache.fineract.client.models.GetDelinquencyTagHistoryResponse;
 import org.apache.fineract.client.models.GetLoansLoanIdDelinquencyPausePeriod;
 import org.apache.fineract.client.models.GetLoansLoanIdDelinquencySummary;
@@ -55,7 +54,6 @@ import org.apache.fineract.client.models.PostUsersResponse;
 import org.apache.fineract.client.services.LoansApi;
 import org.apache.fineract.client.services.UsersApi;
 import org.apache.fineract.client.util.JSON;
-import org.apache.fineract.test.api.ApiProperties;
 import org.apache.fineract.test.data.DelinquencyRange;
 import org.apache.fineract.test.data.LoanStatus;
 import org.apache.fineract.test.helper.ErrorHelper;
@@ -76,6 +74,7 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
     public static final String DEFAULT_LOCALE = "en";
     public static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern(DATE_FORMAT);
     private static final Gson GSON = new JSON().getGson();
+    private static final String PWD_USER_WITH_ROLE = "1234567890Aa!";
 
     @Autowired
     private LoansApi loansApi;
@@ -85,9 +84,6 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
 
     @Autowired
     private EventCheckHelper eventCheckHelper;
-
-    @Autowired
-    private ApiProperties apiProperties;
 
     @Autowired
     private UsersApi usersApi;
@@ -112,7 +108,7 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
         String expectedDelinquencyRangeValue = expectedDelinquencyRange.getValue();
 
         String actualDelinquencyRangeValue = DelinquencyRange.NO_DELINQUENCY.value;
-        GetDelinquencyRangesResponse actualDelinquencyRange = loanDetails.body().getDelinquencyRange();
+        DelinquencyRangeData actualDelinquencyRange = loanDetails.body().getDelinquencyRange();
         if (actualDelinquencyRange != null) {
             actualDelinquencyRangeValue = actualDelinquencyRange.getClassification();
         }
@@ -226,7 +222,7 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
         Long createdUserId = createUserResponse.body().getResourceId();
         Response<GetUsersUserIdResponse> user = usersApi.retrieveOne31(createdUserId).execute();
         ErrorHelper.checkSuccessfulApiCall(user);
-        String authorizationString = user.body().getUsername() + ":" + apiProperties.getPassword();
+        String authorizationString = user.body().getUsername() + ":" + PWD_USER_WITH_ROLE;
         Base64 base64 = new Base64();
         headerMap.put("Authorization",
                 "Basic " + new String(base64.encode(authorizationString.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
@@ -258,7 +254,7 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
         Long createdUserId = createUserResponse.body().getResourceId();
         Response<GetUsersUserIdResponse> user = usersApi.retrieveOne31(createdUserId).execute();
         ErrorHelper.checkSuccessfulApiCall(user);
-        String authorizationString = user.body().getUsername() + ":" + apiProperties.getPassword();
+        String authorizationString = user.body().getUsername() + ":" + PWD_USER_WITH_ROLE;
         Base64 base64 = new Base64();
         headerMap.put("Authorization",
                 "Basic " + new String(base64.encode(authorizationString.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
@@ -274,8 +270,8 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
         assertThat(errorMessageActual).as(ErrorMessageHelper.wrongErrorMessage(errorMessageActual, errorMessageExpected))
                 .isEqualTo(errorMessageExpected);
 
-        log.info("ERROR CODE: {}", errorCodeActual);
-        log.info("ERROR MESSAGE: {}", errorMessageActual);
+        log.debug("ERROR CODE: {}", errorCodeActual);
+        log.debug("ERROR MESSAGE: {}", errorMessageActual);
     }
 
     @When("Admin initiate a DELINQUENCY RESUME with startDate: {string}")
@@ -629,7 +625,7 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
         String expectedDelinquencyRangeValue = expectedDelinquencyRange.getValue();
 
         eventAssertion.assertEvent(LoanDelinquencyRangeChangeEvent.class, loanId)//
-                .extractingData(loanAccountDelinquencyRangeDataV1 -> { //
+                .extractingData(loanAccountDelinquencyRangeDataV1 -> {
                     String actualDelinquencyRangeValue = loanAccountDelinquencyRangeDataV1.getDelinquencyRange().getClassification();//
                     assertThat(actualDelinquencyRangeValue)//
                             .as(ErrorMessageHelper.delinquencyRangeError(actualDelinquencyRangeValue, expectedDelinquencyRangeValue))//
@@ -644,11 +640,12 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
         long loanId = loanResponse.body().getLoanId();
 
         Response<GetLoansLoanIdResponse> loanDetails = loansApi.retrieveLoan(loanId, false, "", "", "").execute();
-        GetDelinquencyRangesResponse delinquencyRange = loanDetails.body().getDelinquencyRange();
+        DelinquencyRangeData delinquencyRange = loanDetails.body().getDelinquencyRange();
         GetLoansLoanIdDelinquencySummary delinquent = loanDetails.body().getDelinquent();
 
         eventAssertion.assertEvent(LoanDelinquencyRangeChangeEvent.class, loanId)//
-                .extractingData(loanAccountDelinquencyRangeDataV1 -> { //
+                .extractingData(loanAccountDelinquencyRangeDataV1 -> {
+
                     Long loanLevelDelinquencyRangeId = loanAccountDelinquencyRangeDataV1.getDelinquencyRange().getId();
                     String loanLevelDelinquencyRange = loanAccountDelinquencyRangeDataV1.getDelinquencyRange().getClassification();
                     String loanLevelDelinquentDate = loanAccountDelinquencyRangeDataV1.getDelinquentDate();
@@ -657,7 +654,7 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
                     Long loanLevelDelinquencyRangeIdExpected = delinquencyRange.getId();
                     String loanLevelDelinquencyRangeExpected = delinquencyRange.getClassification();
                     String loanLevelDelinquentDateExpected = FORMATTER.format(delinquent.getDelinquentDate());
-                    BigDecimal loanLevelTotalAmountExpected = new BigDecimal(delinquent.getDelinquentAmount());
+                    BigDecimal loanLevelTotalAmountExpected = BigDecimal.valueOf(delinquent.getDelinquentAmount());
 
                     assertThat(loanLevelDelinquencyRangeId)//
                             .as(ErrorMessageHelper.wrongValueInLoanDelinquencyRangeChangeBusinessEvent4(loanLevelDelinquencyRangeId,
@@ -674,7 +671,7 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
                     assertThat(loanLevelTotalAmount)//
                             .as(ErrorMessageHelper.wrongValueInLoanDelinquencyRangeChangeBusinessEvent6(loanLevelTotalAmount,
                                     loanLevelTotalAmountExpected))//
-                            .isEqualTo(loanLevelTotalAmountExpected);//
+                            .isEqualByComparingTo(loanLevelTotalAmountExpected);//
 
                     List<GetLoansLoanIdLoanInstallmentLevelDelinquency> installmentLevelDelinquencyBucketsExpected = delinquent
                             .getInstallmentLevelDelinquency();
@@ -703,7 +700,7 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
                         assertThat(installmentLevelTotalAmount)//
                                 .as(ErrorMessageHelper.wrongValueInLoanDelinquencyRangeChangeBusinessEvent3(installmentLevelTotalAmount,
                                         installmentLevelTotalAmountExpected))//
-                                .isEqualTo(installmentLevelTotalAmountExpected);//
+                                .isEqualByComparingTo(installmentLevelTotalAmountExpected);//
                     }
                     return null;
                 });
@@ -728,11 +725,10 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
                 .as(ErrorMessageHelper.wrongDataInDelinquentLastRepaymentDate(actualLastRepaymentDate, expectedLastRepaymentDate))//
                 .isEqualTo(expectedLastRepaymentDate);//
 
-        log.info("loanDetails.delinquent.lastRepaymentAmount: {}", actualLastRepaymentAmount);
-        log.info("loanDetails.delinquent.lastRepaymentDate: {}", actualLastRepaymentDate);
+        log.debug("loanDetails.delinquent.lastRepaymentAmount: {}", actualLastRepaymentAmount);
+        log.debug("loanDetails.delinquent.lastRepaymentDate: {}", actualLastRepaymentDate);
     }
 
-    @SuppressFBWarnings("SF_SWITCH_NO_DEFAULT")
     private List<String> fetchValuesOfDelinquencyPausePeriods(List<String> header, GetLoansLoanIdDelinquencyPausePeriod t) {
         List<String> actualValues = new ArrayList<>();
         for (String headerName : header) {
@@ -741,6 +737,7 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
                 case "pausePeriodStart" ->
                     actualValues.add(t.getPausePeriodStart() == null ? null : FORMATTER.format(t.getPausePeriodStart()));
                 case "pausePeriodEnd" -> actualValues.add(t.getPausePeriodEnd() == null ? null : FORMATTER.format(t.getPausePeriodEnd()));
+                default -> throw new IllegalStateException(String.format("Header name %s cannot be found", headerName));
             }
         }
         return actualValues;
@@ -757,8 +754,8 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
         assertThat(errorMessageActual).as(ErrorMessageHelper.wrongErrorMessage(errorMessageActual, errorMessageExpected))
                 .isEqualTo(errorMessageExpected);
 
-        log.info("ERROR CODE: {}", errorCodeActual);
-        log.info("ERROR MESSAGE: {}", errorMessageActual);
+        log.debug("ERROR CODE: {}", errorCodeActual);
+        log.debug("ERROR MESSAGE: {}", errorMessageActual);
     }
 
     @Then("LoanDelinquencyRangeChangeBusinessEvent is created")

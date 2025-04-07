@@ -18,9 +18,12 @@
  */
 package org.apache.fineract.portfolio.loanaccount.api;
 
+import java.util.List;
+import org.apache.fineract.portfolio.loanaccount.domain.LoanTransactionType;
+
 public interface LoanApiConstants {
 
-    String emiAmountParameterName = "fixedEmiAmount";
+    String fixedEmiAmountParameterName = "fixedEmiAmount";
     String maxOutstandingBalanceParameterName = "maxOutstandingLoanBalance";
     String disbursementDataParameterName = "disbursementData";
     String expectedDisbursementDateParameterName = "expectedDisbursementDate";
@@ -36,6 +39,7 @@ public interface LoanApiConstants {
     String amountParameterName = "amount";
     String chargeTimeTypeParameterName = "chargeTimeType";
     String chargeCalculationTypeParameterName = "chargeCalculationType";
+    String chargePaymentModeParameterName = "chargePaymentMode";
     String principalDisbursedParameterName = "transactionAmount";
     String chargesParameterName = "charges";
     String loanIdTobeApproved = "loanId";
@@ -89,6 +93,7 @@ public interface LoanApiConstants {
     String linkAccountIdParameterName = "linkAccountId";
     String createStandingInstructionAtDisbursementParameterName = "createStandingInstructionAtDisbursement";
     String daysInYearTypeParameterName = "daysInYearType";
+    String daysInYearCustomStrategyParameterName = "daysInYearCustomStrategy";
     String daysInMonthTypeParameterName = "daysInMonthType";
 
     String MULTIDISBURSE_DETAILS_PARAMNAME = "multiDisburseDetails";
@@ -172,4 +177,20 @@ public interface LoanApiConstants {
 
     // Data Validator names
     String LOAN_FRAUD_DATAVALIDATOR_PREFIX = "loans.fraud";
+
+    String INTEREST_RECOGNITION_ON_DISBURSEMENT_DATE = "interestRecognitionOnDisbursementDate";
+
+    // Loan Summary Transaction Types
+    List<LoanTransactionType> LOAN_SUMMARY_TRANSACTION_TYPES = List.of(LoanTransactionType.CHARGE_ADJUSTMENT, //
+            LoanTransactionType.CHARGEBACK, //
+            LoanTransactionType.CREDIT_BALANCE_REFUND, //
+            LoanTransactionType.DOWN_PAYMENT, //
+            LoanTransactionType.GOODWILL_CREDIT, //
+            LoanTransactionType.INTEREST_PAYMENT_WAIVER, //
+            LoanTransactionType.INTEREST_REFUND, //
+            LoanTransactionType.MERCHANT_ISSUED_REFUND, //
+            LoanTransactionType.PAYOUT_REFUND, //
+            LoanTransactionType.REPAYMENT //
+    );
+
 }

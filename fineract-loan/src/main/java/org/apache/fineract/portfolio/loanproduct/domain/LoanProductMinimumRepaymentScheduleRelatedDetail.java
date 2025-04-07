@@ -19,8 +19,8 @@
 package org.apache.fineract.portfolio.loanproduct.domain;
 
 import java.math.BigDecimal;
-import org.apache.fineract.organisation.monetary.domain.MonetaryCurrency;
-import org.apache.fineract.organisation.monetary.domain.Money;
+import org.apache.fineract.organisation.monetary.data.CurrencyData;
+import org.apache.fineract.portfolio.common.domain.DaysInYearCustomStrategyType;
 import org.apache.fineract.portfolio.common.domain.PeriodFrequencyType;
 
 /**
@@ -28,19 +28,15 @@ import org.apache.fineract.portfolio.common.domain.PeriodFrequencyType;
  */
 public interface LoanProductMinimumRepaymentScheduleRelatedDetail {
 
-    MonetaryCurrency getCurrency();
+    CurrencyData getCurrencyData();
 
-    Money getPrincipal();
+    Integer getGraceOnInterestCharged();
 
-    Integer graceOnInterestCharged();
+    Integer getGraceOnInterestPayment();
 
-    Integer graceOnInterestPayment();
+    Integer getGraceOnPrincipalPayment();
 
-    Integer graceOnPrincipalPayment();
-
-    Integer recurringMoratoriumOnPrincipalPeriods();
-
-    Money getInArrearsTolerance();
+    Integer getRecurringMoratoriumOnPrincipalPeriods();
 
     BigDecimal getNominalInterestRatePerPeriod();
 
@@ -60,5 +56,13 @@ public interface LoanProductMinimumRepaymentScheduleRelatedDetail {
 
     AmortizationMethod getAmortizationMethod();
 
-    Integer getGraceOnDueDate();
+    Integer getGraceOnArrearsAgeing();
+
+    Integer getDaysInMonthType();
+
+    Integer getDaysInYearType();
+
+    boolean isInterestRecognitionOnDisbursementDate();
+
+    DaysInYearCustomStrategyType getDaysInYearCustomStrategy();
 }

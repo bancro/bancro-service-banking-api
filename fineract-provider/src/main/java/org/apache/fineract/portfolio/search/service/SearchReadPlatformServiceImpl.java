@@ -19,16 +19,17 @@
 package org.apache.fineract.portfolio.search.service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Collection;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
+import org.apache.fineract.organisation.monetary.domain.MoneyHelper;
 import org.apache.fineract.organisation.office.data.OfficeData;
 import org.apache.fineract.organisation.office.service.OfficeReadPlatformService;
 import org.apache.fineract.portfolio.client.domain.ClientEnumerations;
@@ -58,7 +59,7 @@ public class SearchReadPlatformServiceImpl implements SearchReadPlatformService 
     private final DatabaseSpecificSQLGenerator sqlGenerator;
 
     @Override
-    public Collection<SearchData> retriveMatchingData(final SearchConditions searchConditions) {
+    public List<SearchData> retriveMatchingData(final SearchConditions searchConditions) {
         final AppUser currentUser = context.authenticatedUser();
         final String hierarchy = currentUser.getOffice().getHierarchy();
 
@@ -194,7 +195,7 @@ public class SearchReadPlatformServiceImpl implements SearchReadPlatformService 
     }
 
     @Override
-    public Collection<AdHocSearchQueryData> retrieveAdHocQueryMatchingData(final AdHocQuerySearchConditions searchConditions) {
+    public List<AdHocSearchQueryData> retrieveAdHocQueryMatchingData(final AdHocQuerySearchConditions searchConditions) {
 
         context.authenticatedUser();
 
@@ -314,9 +315,9 @@ public class SearchReadPlatformServiceImpl implements SearchReadPlatformService 
             final String loanProductName = rs.getString("productName");
             final Integer count = JdbcSupport.getInteger(rs, "count");
             final BigDecimal loanOutStanding = JdbcSupport.getBigDecimalDefaultToZeroIfNull(rs, "outstanding").setScale(2,
-                    RoundingMode.HALF_UP);
-            final Double percentage = JdbcSupport.getBigDecimalDefaultToZeroIfNull(rs, "percentOut").setScale(2, RoundingMode.HALF_UP)
-                    .doubleValue();
+                    MoneyHelper.getRoundingMode());
+            final Double percentage = JdbcSupport.getBigDecimalDefaultToZeroIfNull(rs, "percentOut")
+                    .setScale(2, MoneyHelper.getRoundingMode()).doubleValue();
             return AdHocSearchQueryData.matchedResult(officeName, loanProductName, count, loanOutStanding, percentage);
         }
 

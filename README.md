@@ -1,6 +1,10 @@
 Apache Fineract: A Platform for Microfinance
 ============
-[![Swagger Validation](https://validator.swagger.io/validator?url=https://sandbox.mifos.community/fineract-provider/swagger-ui/fineract.yaml)](https://validator.swagger.io/validator/debug?url=https://sandbox.mifos.community/fineract-provider/swagger-ui/fineract.yaml) [![build](https://github.com/apache/fineract/actions/workflows/build.yml/badge.svg)](https://github.com/apache/fineract/actions/workflows/build.yml) [![Docker Hub](https://img.shields.io/docker/pulls/apache/fineract.svg?logo=Docker)](https://hub.docker.com/r/apache/fineract)  [![Docker Build](https://img.shields.io/docker/cloud/build/apache/fineract.svg?logo=Docker)](https://hub.docker.com/r/apache/fineract/builds) [![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=apache_fineract&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=apache_fineract)
+<!-- TODO Reactivate when there is a working CI-CD instance: [![Swagger Validation](https://validator.swagger.io/validator?url=https://sandbox.mifos.community/fineract-provider/swagger-ui/fineract.yaml)](https://validator.swagger.io/validator/debug?url=https://sandbox.mifos.community/fineract-provider/swagger-ui/fineract.yaml) -->
+[![Build](https://github.com/apache/fineract/actions/workflows/build-mariadb.yml/badge.svg?branch=develop)](https://github.com/apache/fineract/actions/workflows/build-mariadb.yml)
+[![Docker Hub](https://img.shields.io/docker/pulls/apache/fineract.svg?logo=Docker)](https://hub.docker.com/r/apache/fineract)
+[![Docker Build](https://github.com/apache/fineract/actions/workflows/publish-dockerhub.yml/badge.svg)](https://github.com/apache/fineract/actions/workflows/publish-dockerhub.yml)
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=apache_fineract&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=apache_fineract)
 
 </b>
 
@@ -22,15 +26,15 @@ If you are interested in contributing to this project, but perhaps don't quite k
 REQUIREMENTS
 ============
 * `Java >= 17` (Azul Zulu JVM is tested by our CI on GitHub Actions)
-* MariaDB `11.2`
+* MariaDB `11.5.2`
 
 You can run the required version of the database server in a container, instead of having to install it, like this:
 
-    docker run --name mariadb-11.2 -p 3306:3306 -e MARIADB_ROOT_PASSWORD=mysql -d mariadb:11.2
+    docker run --name mariadb-11.5 -p 3306:3306 -e MARIADB_ROOT_PASSWORD=mysql -d mariadb:11.5.2
 
 and stop and destroy it like this:
 
-    docker rm -f mariadb-11.2
+    docker rm -f mariadb-11.5
 
 <br>Beware that this database container database keeps its state inside the container and not on the host filesystem.  It is lost when you destroy (rm) this container.  This is typically fine for development.  See [Caveats: Where to Store Data on the database container documentation](https://hub.docker.com/_/mariadb) re. how to make it persistent instead of ephemeral.<br>
 
@@ -75,10 +79,8 @@ Run the following commands:
 ============
 1. Clone the repository or download and extract the archive file to your local directory.
 2. Run `./gradlew clean bootJar` to build a modern cloud native fully self contained JAR file which will be created at `fineract-provider/build/libs` directory.
-3. As we are not allowed to include a JDBC driver in the built JAR, download a JDBC driver of your choice. For example: `wget https://downloads.mariadb.com/Connectors/java/connector-java-3.3.2/mariadb-java-client-3.3.2.jar`
+3. As we are not allowed to include a JDBC driver in the built JAR, download a JDBC driver of your choice. For example: `wget https://dlm.mariadb.com/4174416/Connectors/java/connector-java-3.5.2/mariadb-java-client-3.5.2.jar`
 4. Start the jar and pass the directory where you have downloaded the JDBC driver as loader.path, for example: `java -Dloader.path=. -jar fineract-provider/build/libs/fineract-provider.jar` (does not require external Tomcat)
-
-NOTE: we cannot upgrade to version 3.0.x of the MariaDB driver just yet; have to wait until 3.0.4 is out for a bug fix.
 
 The tenants database connection details are configured [via environment variables (as with Docker container)](#instructions-to-run-using-docker-and-docker-compose), e.g. like this:
 
@@ -142,15 +144,54 @@ We recommend using the JAR instead of the WAR file deployment, because it's much
 Note that with the 1.4 release the tenants database pool configuration changed from Tomcat DBCP in XML to an embedded Hikari, configured by environment variables, see above.
 
 
-INSTRUCTIONS: How to execute Integration Tests
+INSTRUCTIONS: How to run tests
 ============
-> Note that if this is the first time to access MySQL DB, then you may need to reset your password.
 
-Run the following commands:
-1. `./gradlew createDB -PdbName=fineract_tenants`
-1. `./gradlew createDB -PdbName=fineract_default`
-1. `./gradlew clean test`
+Unit tests
+----------
 
+Here's how to run the set of relatviely fast and indepedent Fineract tests:
+
+```bash
+./gradlew test -x :twofactor-tests:test -x :oauth2-tests:test -x :integration-tests:test
+```
+
+This runs nearly 1,000 tests and completes in a few minutes on decent hardware.
+They shouldn't need any special servers/services running.
+
+Integration tests
+-----------------
+
+Running tests with external dependencies yourself is a multi-step process with many moving parts.
+Sometimes there are arbitrary failures and the prerequisite setup can be daunting.
+A full local integration test run (on a developer workstation) covering every possible test using every external service and every supported relational database engine could take an entire day, and that's assuming everything is properly configured and runs as expected.
+
+Right now we depend on GitHub to know if "the build" is passing (it's actually multiple builds).
+The authoritative source of truth for what commands/services/tests to run, how, and when are the files in `.github/workflows/`.
+Output from runs based on those configuration files appears at <https://github.com/apache/fineract/actions>.
+
+Note these builds are run in [short-lived virtual machines](https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners), so locally reproducing the same may require additional effort, such as these extra clean-up procedures:
+
+```bash
+# Destroy anything untracked by git.
+# ⚠️ This may delete something important, e.g. a finely-tuned IDE configuration.
+git clean --force -dx
+
+# Destroy various caches and configs.
+# ⚠️ This may delete gibibytes of cached data, making the next build very slow.
+rm -rf ~/.gradle ~/.m2 /tmp/cargo*
+
+# Destroy any Java containers left running.
+# 💚 This is generally very safe to run between builds.
+ps auxwww | grep [c]argo | awk '{ print $2 }' | xargs -r kill
+```
+
+Testing within IDEs
+-----------------
+
+See the next section for testing in Eclipse.
+
+See <https://fineract-academy.com> for testing in IntelliJ.
 
 INSTRUCTIONS: How to run and debug in Eclipse IDE
 ============
@@ -218,6 +259,21 @@ id -u ${GROUP}
 
 Please make sure that you are not checking in your changed values. The defaults should normally work for most people.
 
+INSTRUCTIONS: How to build documentation
+===================================================
+
+Run the following command:
+
+```bash
+./gradlew doc
+```
+
+Some dependencies are required (e.g. Ghostscript, Graphviz), see `.github/workflows/build-documentation.yml` for hints.
+
+Additionally, IDEs such as IntelliJ are useful for editing the AsciiDoc source files while providing a live rendered preview.
+
+HTML rendered from the AsciiDoc source files is also available online at <https://fineract.apache.org/docs/current/>.
+
 Connection pool configuration
 =============================
 
@@ -228,7 +284,7 @@ NOTE: we'll keep backwards compatibility until one of the next releases to ensur
 <br>SSL CONFIGURATION
 =================
 
-Read also [the HTTPS related doc](fineract-doc/src/docs/en/deployment.adoc#https).
+Read also [the HTTPS related doc](fineract-doc/src/docs/en/chapters/deployment/https.adoc).
 
 By default SSL is enabled, but all SSL related properties are now tunable. SSL can be turned off by setting the environment variable `FINERACT_SERVER_SSL_ENABLED` to false. If you do that then please make sure to also change the server port to `8080` via the variable `FINERACT_SERVER_PORT`, just for the sake of keeping the conventions.
 You can choose now easily a different SSL keystore by setting `FINERACT_SERVER_SSL_KEY_STORE` with a path to a different (not embedded) keystore. The password can be set via `FINERACT_SERVER_SSL_KEY_STORE_PASSWORD`. See the `application.properties` file and the latest Spring Boot documentation (https://docs.spring.io/spring-boot/docs/current/reference/html/application-properties.html) for more details.
@@ -387,7 +443,7 @@ The progress of this project can be viewed here: [View change log](https://githu
 License
 ============
 
-This project is licensed under Apache License Version 2.0. See <https://github.com/apache/incubator-fineract/blob/develop/LICENSE.md> for reference.
+This project is licensed under Apache License Version 2.0. See <https://github.com/apache/fineract/blob/develop/APACHE_LICENSETEXT.md> for reference.
 
 The Connector/J JDBC Driver client library from MariaDB.org, which is licensed under the LGPL,
 is used in development when running integration tests that use the Liquibase library.  That JDBC
@@ -406,7 +462,7 @@ The API for Fineract is documented in [apiLive.htm](fineract-provider/src/main/r
 
 The Swagger documentation (work in progress; see [FINERACT-733](https://issues.apache.org/jira/browse/FINERACT-733)) can be accessed under [/fineract-provider/swagger-ui/index.html](https://localhost:8443/fineract-provider/swagger-ui/index.html) and [live Swagger UI here on Fineract.dev](https://sandbox.mifos.community/fineract-provider/swagger-ui/index.html).
 
-Apache Fineract supports client code generation using [Swagger Codegen](https://github.com/swagger-api/swagger-codegen) based on the [OpenAPI Specification](https://swagger.io/specification/).  For more instructions on how to generate the client code, check [docs/developers/swagger/client.md](docs/developers/swagger/client.md).
+Apache Fineract supports client code generation using [Swagger Codegen](https://github.com/swagger-api/swagger-codegen) based on the [OpenAPI Specification](https://swagger.io/specification/).  For more instructions on how to generate the client code, check [fineract-doc/src/docs/en/chapters/sdk/client.adoc](fineract-doc/src/docs/en/chapters/sdk/client.adoc).
 
 
 <br>API CLIENTS (Web UIs, Mobile, etc.)
@@ -448,7 +504,7 @@ Apache Fineract / Mifos X Demo (November 2016) - <https://www.youtube.com/watch?
 We use Swagger-UI to generate and maintain our API documentation, you can see the demo video [here](https://www.youtube.com/watch?v=FlVd-0YAo6c) or a live version
 [here](https://sandbox.mifos.community/fineract-provider/swagger-ui/index.html). If you interested to know more about Swagger-UI you can check their [website](https://swagger.io/).
 
-<br>GORVENANCE AND POLICIES
+<br>GOVERNANCE AND POLICIES
 =======================
 
 [Becoming a Committer](https://cwiki.apache.org/confluence/display/FINERACT/Becoming+a+Committer)
@@ -477,7 +533,8 @@ documents the process through which you can become a committer in this project.
 Pull Requests
 -------------
 
-We request that your commit message include a FINERACT JIRA issue, recommended to be put in parentheses at the end of the first line.  Start with an upper case imperative verb (not past form), and a short but concise clear description. (E.g. _Add enforced HideUtilityClassConstructor checkstyle (FINERACT-821)_ or _Fix inability to reschedule when interest accrued larger than EMI (FINERACT-1109)_ etc.).
+We request that your commit message include a FINERACT JIRA issue, and a one-liner that describe the changes.
+Start with an upper case imperative verb (not past form), and a short but concise clear description. (E.g. "FINERACT-821: Add enforced HideUtilityClassConstructor checkstyle").
 
 If your PR is failing to pass our CI build due to a test failure, then:
 

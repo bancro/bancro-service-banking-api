@@ -81,6 +81,7 @@ public interface LoanProductConstants {
     // Interest recalculation related
     String IS_INTEREST_RECALCULATION_ENABLED_PARAMETER_NAME = "isInterestRecalculationEnabled";
     String DAYS_IN_YEAR_TYPE_PARAMETER_NAME = "daysInYearType";
+    String DAYS_IN_YEAR_CUSTOM_STRATEGY_TYPE_PARAMETER_NAME = "daysInYearCustomStrategy";
     String DAYS_IN_MONTH_TYPE_PARAMETER_NAME = "daysInMonthType";
     String interestRecalculationCompoundingMethodParameterName = "interestRecalculationCompoundingMethod";
     String rescheduleStrategyMethodParameterName = "rescheduleStrategyMethod";
@@ -97,6 +98,7 @@ public interface LoanProductConstants {
     String recalculationCompoundingFrequencyNthDayParamName = "recalculationCompoundingFrequencyNthDayType";
     String recalculationCompoundingFrequencyOnDayParamName = "recalculationCompoundingFrequencyOnDayType";
     String isCompoundingToBePostedAsTransactionParamName = "isCompoundingToBePostedAsTransaction";
+    String disallowInterestCalculationOnPastDueParamName = "disallowInterestCalculationOnPastDue";
 
     // Guarantee related
     String holdGuaranteeFundsParamName = "holdGuaranteeFunds";
@@ -163,4 +165,10 @@ public interface LoanProductConstants {
     String ADVANCED_PAYMENT_ALLOCATION_STRATEGY = "advanced-payment-allocation-strategy";
 
     String FIXED_LENGTH = "fixedLength";
+
+    String ENABLE_ACCRUAL_ACTIVITY_POSTING = "enableAccrualActivityPosting";
+    String SUPPORTED_INTEREST_REFUND_TYPES = "supportedInterestRefundTypes";
+    String CHARGE_OFF_BEHAVIOUR = "chargeOffBehaviour";
+
+    String INTEREST_RECOGNITION_ON_DISBURSEMENT_DATE = "interestRecognitionOnDisbursementDate";
 }
